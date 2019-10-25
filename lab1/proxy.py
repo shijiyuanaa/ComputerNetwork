@@ -84,11 +84,14 @@ class ProxyServer:
         # 判断是否访问钓鱼网站
 
         if self.fish(hostname):
+            '''第一种方案：引导到本地html'''
             # print('request to ' + hostname + ' is redirected')
             # with open('fish_page.html') as f:
             #     client_socket.sendall(f.read().encode())
             # client_socket.close()
             # return
+
+            '''第二种方案：引导到cs.hit.edu.cn'''
             print('request to ' + hostname + ' is redirected to cs.hit.edu.cn')
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.connect(('cs.hit.edu.cn', 80))
@@ -97,11 +100,6 @@ class ProxyServer:
             begin = message.index('h')
             end = message.index('H')
             message = message[:begin] + url + message[end-1:]
-            # 修改头部 Accept 防止乱码
-            # change_accept = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3'
-            # acc_begin = message.index('Accept')
-            # length = len(change_accept)
-            # message = message[:acc_begin] + change_accept + message[acc_begin+length:]
             print(message)
             server_socket.sendall(message.encode())
             while True:
@@ -113,7 +111,6 @@ class ProxyServer:
                 client_socket.sendall(buff)
             client_socket.close()
             return
-
 
         '''实现缓存功能'''
         cache_path = self.cache_dir + (hostname + url.path).replace('/', '_')

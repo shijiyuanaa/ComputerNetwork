@@ -47,14 +47,16 @@ class ProxyServer:
 
     def connect(self, client_socket, address):
         # 从客户端接收http请求
-        message = client_socket.recv(self.BUFFER_SIZE).decode('utf-8', 'ignore')
+        ori_message = client_socket.recv(self.BUFFER_SIZE)
+        # print(ori_message)
+        message = ori_message.decode('utf-8', 'ignore')
         header = message.split('\r\n')
         # print(header)
         # header的第一行为请求行
         # 将Request Line的method URL和version 3个部分分开 strip去除首部空格
         request_line = header[0].strip().split()
         if len(request_line) > 1:
-            url = urlparse.urlparse(request_line[1])
+            url = urlparse.urlparse(request_line[1][:-1] if request_line[1][-1] == '/' else request_line[1])
         else:
             print("url is null")
             client_socket.close()
@@ -82,36 +84,33 @@ class ProxyServer:
         # 判断是否访问钓鱼网站
 
         if self.fish(hostname):
-            print('request to ' + hostname + ' is redirected')
-            with open('fish_page.html') as f:
-                client_socket.sendall(f.read().encode())
-            client_socket.close()
-            return
-            # print('request to ' + hostname + ' is redirected to cs.hit.edu.cn')
-            # server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # server_socket.connect(('cs.hit.edu.cn', 80))
-            # # 修改头部url
-            # url = 'http://cs.hit.edu.cn'
-            # begin = message.index('h')
-            # end = message.index('H')
-            # message = message[:begin] + url + message[end-1:]
-            # # 修改头部 Accept 防止乱码
-            # # change_accept = 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3'
-            # # acc_begin = message.index('Accept')
-            # # length = len(change_accept)
-            # # message = message[:acc_begin] + change_accept + message[acc_begin+length:]
-            # print(message)
-            # server_socket.sendall(message.encode())
-            # while True:
-            #     buff = server_socket.recv(self.BUFFER_SIZE)
-            #     if not buff:
-            #         server_socket.close()
-            #         # print(address, "连接关闭")
-            #         break
-            #     client_socket.sendall(buff)
+            '''第一种方案：引导到本地html'''
+            # print('request to ' + hostname + ' is redirected')
+            # with open('fish_page.html') as f:
+            #     client_socket.sendall(f.read().encode())
             # client_socket.close()
             # return
 
+            '''第二种方案：引导到cs.hit.edu.cn'''
+            print('request to ' + hostname + ' is redirected to cs.hit.edu.cn')
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.connect(('cs.hit.edu.cn', 80))
+            # 修改头部url
+            url = 'http://cs.hit.edu.cn'
+            begin = message.index('h')
+            end = message.index('H')
+            message = message[:begin] + url + message[end-1:]
+            print(message)
+            server_socket.sendall(message.encode())
+            while True:
+                buff = server_socket.recv(self.BUFFER_SIZE)
+                if not buff:
+                    server_socket.close()
+                    # print(address, "连接关闭")
+                    break
+                client_socket.sendall(buff)
+            client_socket.close()
+            return
 
         '''实现缓存功能'''
         cache_path = self.cache_dir + (hostname + url.path).replace('/', '_')
@@ -119,14 +118,14 @@ class ProxyServer:
         if os.path.exists(cache_path):
             modified_time = os.stat(cache_path).st_mtime  # 缓存最后一次修改的时间
             headers = str('If-Modified-Since: '+time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(modified_time)))
-            message = message + headers
+            message = message[:-2] + headers + '\r\n\r\n'
             print(message)
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.connect((hostname, 80))
             server_socket.sendall(message.encode())
-            data = server_socket.recv(self.BUFFER_SIZE).decode()
+            data = server_socket.recv(self.BUFFER_SIZE).decode('utf-8', 'ignore')
             server_socket.close()
-            print(data[9:12])
+            print('response:'+'\n'+data)
             if data[9:12] == '304':
                 print("Read from cache")
                 with open(cache_path, "rb") as f:

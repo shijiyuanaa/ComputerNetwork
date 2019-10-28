@@ -50,14 +50,10 @@ class ProxyServer:
         ori_message = client_socket.recv(self.BUFFER_SIZE)
         message = ori_message.decode('utf-8', 'ignore')   # 将bytes类型的报文转换为字符串
         header = message.split('\r\n')   # 把报文以\r\n分割 得到list
-        # print('header:')
-        # print(header)
         # header的第一行为请求行
         # 将Request Line的method URL和version 3个部分分开 strip去除首部空格
         request_line = header[0].split()
-        # print('request line:')
-        # print(request_line)
-        print(message)
+        # print(message)
         if len(request_line) > 1:
             tmp = request_line[1][7:]    # 将http://后的部分取出
             if '?' in tmp:
@@ -73,7 +69,6 @@ class ProxyServer:
             print("url is null")
             client_socket.close()
             return
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # 判断url是否被过滤
         if self.filter_page(hostname):
@@ -89,10 +84,15 @@ class ProxyServer:
 
         # 判断是否访问钓鱼网站
         if self.fish(hostname):
-            # 将客户引导到jwts.hit.edu.cn
-            print('request to ' + hostname + ' is redirected to jwts.hit.edu.cn')
-            server_socket.connect(('jwts.hit.edu.cn', 80))   # 与jwts.hit.edu.cn建立连接
-            server_socket.sendall(message.encode())    # 将请求报文发送给jwts.hit.edu.cn
+            # 将客户引导到钓鱼网站
+            new_hostname = 'today.hit.edu.cn'  # 钓鱼网站的主机名
+            print('request to ' + hostname + ' is redirected to ' + new_hostname)
+            begin = message.index('h')
+            end = message.index('/', 12)   # 找到url中主机名的部分
+            message = message[:begin+7] + new_hostname + '/' + message[end+1:]   # 将主机名部分修改为新的主机名
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.connect((new_hostname, 80))   # 与钓鱼网站的服务器建立连接
+            server_socket.sendall(message.encode())    # 将请求报文发送给钓鱼网站服务器
             while True:
                 # 从服务器接收数据,转发给客户端
                 buff = server_socket.recv(self.BUFFER_SIZE)
@@ -101,11 +101,11 @@ class ProxyServer:
                     break
                 client_socket.sendall(buff)
             client_socket.close()
+            server_socket.close()
             return
 
         '''实现缓存功能'''
         cache_path = self.cache_dir + path.replace('/', '_')  # 将路径中的'/'换成'_', 因为windows文件名不能带'/'
-        print('path:'+path)
         is_modified = False   # 将是否修改过的flag设为false
         if os.path.exists(cache_path):
             # 若缓存文件存在 则判断服务器端是否修改过这个网页
@@ -113,7 +113,6 @@ class ProxyServer:
             headers = str('If-Modified-Since: '+time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(modified_time)))
             # 把modified-time按报文要求的格式格式化
             message = message[:-2] + headers + '\r\n\r\n'  # 把If-Modified-Since字段加入到请求报文中, 注意http用\r\n\r\n判断请求头部结束
-            print(message)
 
             # 向服务器发送该请求
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -121,7 +120,6 @@ class ProxyServer:
             server_socket.sendall(message.encode())
             data = server_socket.recv(self.BUFFER_SIZE).decode('utf-8', 'ignore')
             server_socket.close()
-            print('response:'+'\n'+data)
 
             if data[9:12] == '304':
                 # 若收到的响应代码为304,则说明服务器未修改该网页,故从缓存读取数据交给客户端

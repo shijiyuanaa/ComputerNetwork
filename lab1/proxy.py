@@ -50,9 +50,13 @@ class ProxyServer:
         ori_message = client_socket.recv(self.BUFFER_SIZE)
         message = ori_message.decode('utf-8', 'ignore')   # 将bytes类型的报文转换为字符串
         header = message.split('\r\n')   # 把报文以\r\n分割 得到list
+        # print('header:')
+        # print(header)
         # header的第一行为请求行
         # 将Request Line的method URL和version 3个部分分开 strip去除首部空格
         request_line = header[0].split()
+        # print('request line:')
+        # print(request_line)
         print(message)
         if len(request_line) > 1:
             tmp = request_line[1][7:]    # 将http://后的部分取出

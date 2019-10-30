@@ -1,5 +1,5 @@
 import socket
-import random
+from random import random
 import select
 
 
@@ -66,7 +66,11 @@ class GBNServer:
 
             rs, ws, es = select.select([self.socket, ], [], [], 1)
 
+            # 接收所有ack
             while len(rs) > 0:
+                if random() < 0.5:
+                    print('丢失ack ')
+                    break
                 rcv_pkt, address = self.socket.recvfrom(self.buffer_size)
                 ack_num = rcv_pkt.decode()
                 self.send_window = self.send_window[int(ack_num):]

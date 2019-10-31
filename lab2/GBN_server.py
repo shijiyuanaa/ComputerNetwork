@@ -28,7 +28,7 @@ class Data:
 class GBNServer:
     def __init__(self):
         self.window_size = 5   # 窗口大小
-        self.max_send_time = 10   # 发送超时时间
+        self.max_send_time = 3   # 发送超时时间
         self.max_receive_time = 5  # 接收超时时间
         self.address = ('127.0.0.1', 8888)  # 发送方地址
         self.client_address = ('127.0.0.1', 9999)   # 接收方地址
@@ -37,6 +37,8 @@ class GBNServer:
         self.send_window = []   # 发送窗口
         self.receive_buffer = []
         self.buffer_size = 1024
+        self.send_finished = False
+        self.receive_finished = False
 
     def send_and_receive(self, buffer):
         send_timer = 0
@@ -44,10 +46,15 @@ class GBNServer:
         next_seq_num = send_base
         expected_num = 0
         receive_timer = 0
+        last_ack = -1
         total = len(buffer)
         while True:
+            # print(self.send_finished)
+            # print(self.receive_finished)
+            if self.send_finished and self.receive_finished:
+                break
             # 当有窗口中有序号可用时，发送数据
-            while next_seq_num < send_base + self.window_size and next_seq_num < len(buffer):
+            while next_seq_num < send_base + self.window_size and next_seq_num < total:
                 pkt = Data(0, '%8d' % next_seq_num, buffer[next_seq_num])
                 self.socket.sendto(str(pkt).encode(), self.client_address)
                 print('server send pkt ' + str(next_seq_num))
@@ -56,50 +63,51 @@ class GBNServer:
                     send_timer = 0
                 next_seq_num = next_seq_num + 1
 
-            # 发送窗口为空，结束server发送
-            if not self.send_window and receive_timer > self.max_receive_time and send_timer > self.max_send_time:
-                print('server finished sending')
+            # print(self.send_window)
+            # print(send_timer)
+            # print(receive_timer)
+
+            # 发送窗口为空，将send_finished设为True 反复发finish 以防finish丢失
+            if not self.send_window:
+                # print('server finished sending')
                 self.socket.sendto('finish'.encode(), self.client_address)
-                with open('server_receive.txt', 'w') as f:
-                    for data in self.receive_buffer:
-                        f.write(data)
-                return
+                self.send_finished = True
 
             # 超时，重传发送窗口中的数据
             if send_timer > self.max_send_time:
                 print('server send timeout, resend')
-                timer = 0
+                send_timer = 0
                 for pkt in self.send_window:
                     self.socket.sendto(str(pkt).encode(), self.client_address)
                     print('resend ' + str(pkt.seq))
 
             rs, ws, es = select.select([self.socket, ], [], [], 1)
 
-            while len(rs) > 0:
-                if random() < 0.2:
-                    print('server丢失数据 ')
-                    break
-                if random() < 0.2:
-                    print('server丢失ack ')
-                    break
+            if len(rs) > 0:
                 rcv_pkt, address = self.socket.recvfrom(self.buffer_size)
+                if random() < 0.1:
+                    send_timer += 1
+                    receive_timer += 1
+                    print('server丢包 ')
+                    continue
                 message = rcv_pkt.decode()
 
+                # print(message)
                 # server发送结束
                 if message == 'finish':
-                    with open('client_receive.txt', 'w') as f:
+                    with open('server_receive.txt', 'w') as f:
                         for data in self.receive_buffer:
                             f.write(data)
-                    break
+                    self.receive_finished = True
 
                 elif message[0] == '1':
                     ack_num = int(message[1:9])
-                    self.send_window = self.send_window[ack_num:]
+                    for i in range(len(self.send_window)):
+                        if ack_num == int(self.send_window[i].seq):
+                            self.send_window = self.send_window[i + 1:]
+                            break
                     send_base = ack_num + 1
-                    if send_base == next_seq_num:
-                        break
-                    else:
-                        send_timer = 0
+                    send_timer = 0
                 elif message[0] == '0':
                     rcv_seq_num = message[1:9]
                     if int(rcv_seq_num) == expected_num:
@@ -107,14 +115,15 @@ class GBNServer:
                         self.receive_buffer.append(rcv_pkt.decode()[9:])
                         ack_pkt = Data(1, '%8d ' % expected_num, '')
                         self.socket.sendto(str(ack_pkt).encode(), self.client_address)   # 发送ack分组
+                        last_ack = expected_num
                         expected_num += 1
+                        receive_timer = 0
                     else:
-                        print('server收到错误分组, 重发ack ', expected_num)
-                        ack_pkt = Data(1, '%8d ' % expected_num, '')
+                        print('server收到错误分组, 重发ack ', last_ack)
+                        ack_pkt = Data(1, '%8d ' % last_ack, '')
                         self.socket.sendto(str(ack_pkt).encode(), self.client_address)  # 发送ack分组
                 else:
                     pass
-
             else:
                 receive_timer += 1
                 send_timer += 1
@@ -129,16 +138,22 @@ def main(server_socket):
                 data.append(pkt)
             else:
                 break
-
+    timer = 0
     while True:
+        # 服务器计时器，如果收不到客户端的请求则退出
+        if timer > 20:
+            return
+
         rs, ws, es = select.select([server_socket.socket, ], [], [], 1)
         if len(rs) > 0:
             message, address = server_socket.socket.recvfrom(server_socket.buffer_size)
             if message.decode() == '-testgbn':
                 server_socket.send_and_receive(data)
             if message.decode() == '-finish':
-                print('send finished')
+                print('finished')
                 return
+        # print(timer)
+        timer += 1
 
 
 if __name__ == '__main__':

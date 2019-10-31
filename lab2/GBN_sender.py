@@ -41,13 +41,13 @@ class GBNSender:
             #         flag = True
             #     else:
             #         flag = next_seq_num <= (send_base + self.window_size - 1) % self.max_seq_num
-            while next_seq_num < send_base + self.window_size and next_seq_num < len(buffer):
+            while len(self.send_window) < self.window_size:
                 pkt = Data('%8d' % next_seq_num, buffer[next_seq_num], 0)
-                self.socket.sendto(str(pkt).encode(), self.receiver_address)
-                print('sender send pkt ' + str(next_seq_num))
+                # self.socket.sendto(str(pkt).encode(), self.receiver_address)
+                # print('sender send pkt ' + str(next_seq_num))
                 self.send_window.append(pkt)
-                if send_base == next_seq_num:
-                    timer = 0
+                # if send_base == next_seq_num:
+                #     timer = 0
                 next_seq_num = next_seq_num + 1
                 # if send_base < 4:
                 #     flag = next_seq_num <= (send_base + self.window_size - 1) % self.max_seq_num
@@ -56,8 +56,11 @@ class GBNSender:
                 #         flag = send_base < next_seq_num < send_base + self.window_size
                 #     else:
                 #         flag = next_seq_num <= (send_base + self.window_size - 1) % self.max_seq_num
-            else:
-                print('refused data')
+            # else:
+            #     print('refused data')
+            for data in self.send_window:
+                self.socket.sendto(str(data).encode(), self.receiver_address)
+
             if timer > self.max_time:
                 print('timeout, resend')
                 timer = 0
@@ -67,20 +70,20 @@ class GBNSender:
 
             rs, ws, es = select.select([self.socket, ], [], [], 1)
 
-            # 接收所有ack
-            while len(rs) > 0:
-                if random() < 0.5:
-                    print('丢失ack ')
-                    break
+            if len(rs) > 0:
                 rcv_pkt, address = self.socket.recvfrom(self.buffer_size)
+                if random() < 0.1:
+                    print('丢失ack ')
+                    continue
                 ack_num = rcv_pkt.decode()
-                self.send_window = self.send_window[int(ack_num):]
+                for i in range(len(self.send_window) - 1):
+                    if int(ack_num) == int(self.send_window[i].seq):
+                        self.send_window = self.send_window[i+1:]
                 send_base = int(ack_num) + 1
                 if send_base == next_seq_num:
                     break
                 else:
                     timer = 0
-                rs, ws, es = select.select([self.socket, ], [], [], 1)
             else:
                 timer += 1
 

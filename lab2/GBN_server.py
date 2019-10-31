@@ -153,6 +153,7 @@ def main(server_socket):
                 print('finished')
                 return
         # print(timer)
+        print('here')
         timer += 1
 
 

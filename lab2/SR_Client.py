@@ -50,14 +50,14 @@ class SRClient:
         self.receive_finished = False
 
     def send_and_receive(self, buffer):
-        send_timer = {}  # 为每个已发送未ACK的分组设置计时器
         send_base = 0
         next_seq_num = send_base
         expected_num = 0
         receive_timer = 0
-        # last_ack = -1
         total = len(buffer)
         while True:
+            # print(self.send_finished)
+            # print(self.receive_finished)
             if self.send_finished and self.receive_finished:
                 break
 
@@ -82,8 +82,15 @@ class SRClient:
                     self.socket.sendto(str(dgram.pkt).encode(), self.server_address)
                     # print('resend ' + str(dgram.pkt.seq))
 
+            '''
+            select()的机制中提供一fd_set的数据结构，实际上是一long类型的数组， 每一个数组元素都能与一打开的文件句柄
+            （不管是Socket句柄，还是其他文件或命名管道或设备句柄）建立联系，建立联系的工作由程序员完成， 当调用select()
+            时，由内核根据IO状态修改fd_set的内容，由此来通知执行了select()的进程哪一Socket或文件可读或可写。
+            返回值：准备就绪的描述符数，若超时则返回0，若出错则返回-1。
+            '''
+
             # 非阻塞监听
-            rs, ws, es = select.select([self.socket, ], [], [], 1)
+            rs, ws, es = select.select([self.socket, ], [], [], 0.01)
 
             while len(rs) > 0:
                 rcv_pkt, address = self.socket.recvfrom(self.buffer_size)
@@ -93,7 +100,7 @@ class SRClient:
                         dgram.timer += 1
                     receive_timer += 1
                     print('client 丢包 ')
-                    rs, ws, es = select.select([self.socket, ], [], [], 1)
+                    rs, ws, es = select.select([self.socket, ], [], [], 0.01)
                     continue
                 message = rcv_pkt.decode()
 
@@ -181,7 +188,7 @@ class SRClient:
                             pass
                 else:
                     pass
-                rs, ws, es = select.select([self.socket, ], [], [], 1)
+                rs, ws, es = select.select([self.socket, ], [], [], 0.01)
             else:
                 receive_timer += 1
                 for dgram in self.send_window:

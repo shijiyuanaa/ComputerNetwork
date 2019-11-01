@@ -92,7 +92,7 @@ class SRClient:
                     for dgram in self.send_window:
                         dgram.timer += 1
                     receive_timer += 1
-                    print('client丢包 ')
+                    print('client 丢包 ')
                     rs, ws, es = select.select([self.socket, ], [], [], 1)
                     continue
                 message = rcv_pkt.decode()
@@ -107,6 +107,7 @@ class SRClient:
                 elif message[0] == '1':
                     # 获取ACK的序号
                     ack_num = int(message[1:9])
+                    print('client 收到ack分组, ack: ' + str(ack_num))
                     for dgram in self.send_window:
                         # 在窗口中找序号为ack_num的分组，并把is_acked设为True
                         if int(dgram.pkt.seq) == ack_num:
@@ -149,6 +150,13 @@ class SRClient:
                         for i in range(idx + 1):
                             # print(tmp[i][1].decode())
                             self.receive_data.append(tmp[i][1].decode()[9:])  # 把接收窗口中的数据提交给receive_data
+                        # 记录提交的分组的序号
+                        base = int(tmp[0][1].decode()[1:9])
+                        end = int(tmp[idx][1].decode()[1:9])
+                        if base != end:
+                            print('client 向上层提交数据: ' + str(base) + ' ~ ' + str(end))
+                        else:
+                            print('client 向上层提交数据: ' + str(base))
                         expected_num = tmp[idx][0]+1
                         tmp = tmp[idx + 1:]   # 接收窗口滑动
                         self.receive_window = dict(tmp)
@@ -189,6 +197,7 @@ def main(client_socket):
                 data.append(pkt)
             else:
                 break
+
     client_socket.socket.sendto('-testsr'.encode(), client_socket.server_address)
     client_socket.send_and_receive(data)
     client_socket.socket.sendto('-finish'.encode(), client_socket.server_address)

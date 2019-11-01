@@ -58,8 +58,8 @@ class SRServer:
         last_ack = -1
         total = len(buffer)
         while True:
-            print(self.send_finished)
-            print(self.receive_finished)
+            # print(self.send_finished)
+            # print(self.receive_finished)
             if self.send_finished and self.receive_finished:
                 break
 
@@ -94,7 +94,7 @@ class SRServer:
                     for dgram in self.send_window:
                         dgram.timer += 1
                     receive_timer += 1
-                    print('server丢包 ')
+                    print('server 丢包 ')
                     rs, ws, es = select.select([self.socket, ], [], [], 1)
                     continue
                 message = rcv_pkt.decode()
@@ -109,6 +109,7 @@ class SRServer:
                 elif message[0] == '1':
                     # 获取ACK的序号
                     ack_num = int(message[1:9])
+                    print('server 收到ack分组, ack: ' + str(ack_num))
                     for dgram in self.send_window:
                         # 在窗口中找序号为ack_num的分组，并把is_acked设为True
                         if int(dgram.pkt.seq) == ack_num:
@@ -123,8 +124,6 @@ class SRServer:
                                     else:
                                         break
                                 # 窗口滑动
-                                print(len(self.send_window))
-                                print(idx)
                                 send_base = int(self.send_window[idx].pkt.seq) + 1
                                 self.send_window = self.send_window[idx+1:]
                             break
@@ -150,8 +149,14 @@ class SRServer:
                                 idx += 1
                             else:
                                 break
-                        for i in range(idx+1):
+                        for i in range(idx + 1):
                             self.receive_data.append(tmp[i][1].decode()[9:])   # 把接收窗口中的数据提交给receive_data
+                        base = int(tmp[0][1].decode()[1:9])
+                        end = int(tmp[idx][1].decode()[1:9])
+                        if base != end:
+                            print('server 向上层提交数据: ' + str(base) + ' ~ ' + str(end))
+                        else:
+                            print('server 向上层提交数据: ' + str(base))
                         expected_num = tmp[idx][0]+1
                         tmp = tmp[idx + 1:]   # 接收窗口滑动
                         self.receive_window = dict(tmp)

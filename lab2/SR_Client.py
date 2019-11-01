@@ -58,7 +58,12 @@ class SRClient:
         while True:
             # print(self.send_finished)
             # print(self.receive_finished)
-            if self.send_finished and self.receive_finished:
+            # if self.send_finished and self.receive_finished:
+            #     break
+            if not self.send_window and receive_timer > self.max_receive_time:
+                with open('client_receive.txt', 'w') as f:
+                    for data in self.receive_data:
+                        f.write(data)
                 break
 
             # 当有窗口中有序号可用时，发送数据
@@ -71,10 +76,10 @@ class SRClient:
                 next_seq_num = next_seq_num + 1
 
             # 发送窗口为空，将send_finished设为True 反复发finish 以防finish丢失
-            if not self.send_window:
-                # print('server finished sending')
-                self.socket.sendto('finish'.encode(), self.server_address)
-                self.send_finished = True
+            # if not self.send_window:
+            #     # print('server finished sending')
+            #     self.socket.sendto('finish'.encode(), self.server_address)
+            #     self.send_finished = True
 
             # 遍历已发送未确认分组，若有超时的分组，则重发
             for dgram in self.send_window:
@@ -93,6 +98,7 @@ class SRClient:
             rs, ws, es = select.select([self.socket, ], [], [], 0.01)
 
             while len(rs) > 0:
+                # print(rs)
                 rcv_pkt, address = self.socket.recvfrom(self.buffer_size)
                 # 模拟丢包
                 if random() < 0.2:
@@ -102,16 +108,17 @@ class SRClient:
                     print('client 丢包 ')
                     rs, ws, es = select.select([self.socket, ], [], [], 0.01)
                     continue
+                receive_timer = 0
                 message = rcv_pkt.decode()
-
-                if message == 'finish':
-                    with open('client_receive.txt', 'w') as f:
-                        for data in self.receive_data:
-                            f.write(data)
-                    self.receive_finished = True
+                # if message == 'finish':
+                #     with open('client_receive.txt', 'w') as f:
+                #         for data in self.receive_data:
+                #             f.write(data)
+                #     self.receive_finished = True
+                #     break
 
                 # 收到的是ACK分组
-                elif message[0] == '1':
+                if message[0] == '1':
                     # 获取ACK的序号
                     ack_num = int(message[1:9])
                     print('client 收到ack分组, ack: ' + str(ack_num))
@@ -167,7 +174,6 @@ class SRClient:
                         expected_num = tmp[idx][0]+1
                         tmp = tmp[idx + 1:]   # 接收窗口滑动
                         self.receive_window = dict(tmp)
-                        receive_timer = 0
                     else:
                         '''
                         tmp 的格式为  [(序号，数据分组)...]
@@ -195,7 +201,8 @@ class SRClient:
                     dgram.timer += 1
 
 
-def main(client_socket):
+def start():
+    client_socket = SRClient()
     data = []
     with open('client_send.txt', 'r') as f:
         while True:
@@ -211,5 +218,4 @@ def main(client_socket):
 
 
 if __name__ == '__main__':
-    client = SRClient()
-    main(client)
+    start()

@@ -6,10 +6,10 @@ from SR_Server import start as sr_server_start
 
 
 def main():
-    t1 = threading.Thread(target=gbn_server_start, args=())
-    t2 = threading.Thread(target=gbn_client_start, args=())
-    # t1 = threading.Thread(target=sr_server_start, args=())
-    # t2 = threading.Thread(target=sr_client_start, args=())
+    # t1 = threading.Thread(target=gbn_server_start, args=())
+    # t2 = threading.Thread(target=gbn_client_start, args=())
+    t1 = threading.Thread(target=sr_server_start, args=())
+    t2 = threading.Thread(target=sr_client_start, args=())
     t1.start()
     t2.start()
 

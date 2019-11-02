@@ -1,7 +1,6 @@
 import socket
 from random import random
 import select
-import time
 
 
 '''

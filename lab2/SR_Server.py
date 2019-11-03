@@ -46,8 +46,6 @@ class SRServer:
         self.receive_data = []  # 有序数据
         self.receive_window = {}  # 接收窗口
         self.buffer_size = 1024
-        self.send_finished = False
-        self.receive_finished = False
 
     def send_and_receive(self, buffer):
         send_base = 0
@@ -56,8 +54,6 @@ class SRServer:
         receive_timer = 0
         total = len(buffer)
         while True:
-            # print(self.send_finished)
-            # print(self.receive_finished)
             if not self.send_window and receive_timer > self.max_receive_time:
                 with open('server_receive.txt', 'w') as f:
                     for data in self.receive_data:
@@ -73,17 +69,11 @@ class SRServer:
                 self.send_window.append(DataGram(pkt))
                 next_seq_num = next_seq_num + 1
 
-            # 发送窗口为空，将send_finished设为True 反复发finish 以防finish丢失
-            # if not self.send_window:
-                # print('server finished sending')
-                # self.socket.sendto('finish'.encode(), self.client_address)
-                # self.send_finished = True
-
             # 遍历已发送未确认分组，若有超时的分组，则重发
             for dgram in self.send_window :
                 if dgram.timer > self.max_send_time and not dgram.is_acked:
                     self.socket.sendto(str(dgram.pkt).encode(), self.client_address)
-                    # print('resend ' + str(dgram.pkt.seq))
+                    print('resend ' + str(dgram.pkt.seq))
 
             '''
             select()的机制中提供一fd_set的数据结构，实际上是一long类型的数组， 每一个数组元素都能与一打开的文件句柄
@@ -107,11 +97,6 @@ class SRServer:
                     continue
                 message = rcv_pkt.decode()
                 receive_timer = 0
-                # if message == 'finish':
-                #     with open('server_receive.txt', 'w') as f:
-                #         for data in self.receive_data:
-                #             f.write(data)
-                #     self.receive_finished = True
 
                 # 收到的是ACK分组
                 if message[0] == '1':
@@ -123,7 +108,7 @@ class SRServer:
                         if int(dgram.pkt.seq) == ack_num:
                             dgram.timer = 0
                             dgram.is_acked = True
-                            # 如果ack的是窗口中的第一个分组
+                            # 如果ack的是发送窗口中的第一个分组
                             if self.send_window.index(dgram) == 0:
                                 idx = -1  # 用idx表示窗口中最后一个被ack的分组的下标
                                 for i in self.send_window:
@@ -172,9 +157,8 @@ class SRServer:
                         '''
                         tmp 的格式为  [(序号，数据分组)...]
                         '''
-                        tmp = [(k, self.receive_window[k]) for k in sorted(self.receive_window.keys())]
                         # 若在rcv_base~rcv_base + N -1之内则加入接收窗口
-                        if expected_num < int(rcv_seq_num) < expected_num + self.receive_window_size - 1:
+                        if expected_num <= int(rcv_seq_num) < expected_num + self.receive_window_size - 1:
                             self.receive_window[int(rcv_seq_num)] = rcv_pkt
                             ack_pkt = Data(1, '%8d ' % int(rcv_seq_num), '')
                             print('server ack ' + rcv_seq_num)
@@ -218,8 +202,6 @@ def start():
             if message.decode() == '-finish':
                 print('finished')
                 return
-        # print(timer)
-        # print('here')
         timer += 1
 
 

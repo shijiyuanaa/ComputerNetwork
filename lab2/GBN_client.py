@@ -36,8 +36,6 @@ class GBNClient:
         self.send_window = []  # 发送窗口
         self.receive_buffer = []
         self.buffer_size = 1024
-        self.send_finished = False
-        self.receive_finished = False
 
     def send_and_receive(self, buffer):
         send_timer = 0
@@ -48,9 +46,6 @@ class GBNClient:
         last_ack = -1
         total = len(buffer)
         while True:
-            # if self.send_finished and self.receive_finished:
-            #     break
-            # 当有窗口中有序号可用时，发送数据
             if not self.send_window and receive_timer > self.max_receive_time:
                 with open('client_receive.txt', 'w') as f:
                     for data in self.receive_buffer:
@@ -65,12 +60,6 @@ class GBNClient:
                 if send_base == next_seq_num:
                     send_timer = 0
                 next_seq_num = next_seq_num + 1
-
-            # 发送窗口为空，将send_finished设为True 反复发finish以防finish丢失
-            # if not self.send_window:
-            #     # print('client finished sending')
-            #     self.socket.sendto('finish'.encode(), self.server_address)
-            #     self.send_finished = True
 
             # 超时，重传发送窗口中的数据
             if send_timer > self.max_send_time and self.send_window:
@@ -92,13 +81,6 @@ class GBNClient:
                     continue
                 message = rcv_pkt.decode()
                 receive_timer = 0
-                # print(message)
-                # server发送结束,则client将接收到的写入文件
-                # if message == 'finish':
-                #     with open('client_receive.txt', 'w') as f:
-                #         for data in self.receive_buffer:
-                #             f.write(data)
-                #     self.receive_finished = True
 
                 if message[0] == '1':
                     ack_num = int(message[1:9])

@@ -37,8 +37,6 @@ class GBNServer:
         self.send_window = []   # 发送窗口
         self.receive_buffer = []
         self.buffer_size = 1024
-        self.send_finished = False
-        self.receive_finished = False
 
     def send_and_receive(self, buffer):
         send_timer = 0
@@ -49,10 +47,6 @@ class GBNServer:
         last_ack = -1
         total = len(buffer)
         while True:
-            # print(self.send_finished)
-            # print(self.receive_finished)
-            # if self.send_finished and self.receive_finished:
-            #     break
             if not self.send_window and receive_timer > self.max_receive_time:
                 with open('server_receive.txt', 'w') as f:
                     for data in self.receive_buffer:
@@ -68,16 +62,6 @@ class GBNServer:
                 if send_base == next_seq_num:
                     send_timer = 0
                 next_seq_num = next_seq_num + 1
-
-            # print(self.send_window)
-            # print(send_timer)
-            # print(receive_timer)
-
-            # 发送窗口为空，将send_finished设为True 反复发finish 以防finish丢失
-            # if not self.send_window:
-            #     # print('server finished sending')
-            #     self.socket.sendto('finish'.encode(), self.client_address)
-            #     self.send_finished = True
 
             # 超时，重传发送窗口中的数据
             if send_timer > self.max_send_time and self.send_window:
@@ -99,14 +83,6 @@ class GBNServer:
                     continue
                 message = rcv_pkt.decode()
                 receive_timer = 0
-
-                # print(message)
-                # server发送结束
-                # if message == 'finish':
-                #     with open('server_receive.txt', 'w') as f:
-                #         for data in self.receive_buffer:
-                #             f.write(data)
-                #     self.receive_finished = True
 
                 if message[0] == '1':
                     ack_num = int(message[1:9])
@@ -161,8 +137,6 @@ def start():
             if message.decode() == '-finish':
                 print('finished')
                 return
-        # print(timer)
-        # print('here')
         timer += 1
 
 
